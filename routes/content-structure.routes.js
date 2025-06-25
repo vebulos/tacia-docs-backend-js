@@ -14,7 +14,14 @@ import { CONTENT_DIR } from '../server.js';
  * @param {Response} res - HTTP response object
  */
 export async function getContentStructure(req, res) {
+  
   try {
+
+    // console.log(`----content structure-------> req.url: ${req.url}`  );  
+    // console.log(`----content structure-------> req.query.path: ${req.query.path}`);  
+    // console.log(`----content structure-------> req.params.path: ${req.params.path}`);  
+    
+
     // Get path from query or use root
     const requestedPath = req.query?.path || '';
     console.log('[content-structure] Requested path:', requestedPath);

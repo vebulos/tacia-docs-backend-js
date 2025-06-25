@@ -24,18 +24,19 @@ export async function getMarkdownContent(req, res) {
     }
     requestedPath = decodeURIComponent(requestedPath);
     
+console.log(`----content-------> req.query.path: ${req.query.path}`);  
+console.log(`----content-------> req.params.path: ${req.params.path}`);  
+console.log(`----content-------> req.url: ${req.url}`  );  
+
+
     console.log(`[content] Processing markdown request for path: ${requestedPath}`);
 
     // Normalize and secure the path
+    // TODO check if PathUtils can be better used here
     let safePath = path.normalize(requestedPath)
       .replace(/^([\/])+/, '')
       .replace(/\/\.\.\//g, '/')
       .replace(/[\/]+/g, '/');
-    
-    // Ensure the path has .md extension
-    if (!safePath.endsWith('.md')) {
-      safePath = `${safePath}.md`;
-    }
     
     const fullPath = path.join(CONTENT_DIR, safePath);
     
