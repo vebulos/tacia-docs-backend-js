@@ -91,7 +91,21 @@ async function createServer() {
       res.end(JSON.stringify(data));
     };
 
-    // Route for markdown content API with path parameter
+    // Route for /api/content (root)
+    if (req.method === 'GET' && parsedUrl.pathname === '/api/content') {
+      const queryParams = {};
+      for (const [key, value] of Object.entries(parsedUrl.query || {})) {
+        queryParams[key] = value;
+      }
+      req.query = queryParams;
+      req.params = { path: '' }; // Empty path for root
+      
+      console.log('[server] GET /api/content with query:', req.query);
+      await getMarkdownContent(req, res);
+      return;
+    }
+
+    // Route for /api/content/some/path
     if (req.method === 'GET' && parsedUrl.pathname.startsWith('/api/content/')) {
       const pathParam = parsedUrl.pathname.substring('/api/content/'.length);
       req.params = { path: pathParam };
@@ -103,9 +117,7 @@ async function createServer() {
       }
       req.query = queryParams;
       
-      // Log the request for debugging
       console.log(`[server] GET /api/content/${pathParam} with query:`, req.query);
-      
       await getMarkdownContent(req, res);
       return;
     }

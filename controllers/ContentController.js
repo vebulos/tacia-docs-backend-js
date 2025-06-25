@@ -66,7 +66,7 @@ class ContentController {
       
       // Parse markdown if it's a markdown file
       if (path.extname(fullPath).toLowerCase() === '.md') {
-        const parsedContent = MarkdownService.parseMarkdown(fileContent, fullPath);
+        const parsedContent = MarkdownService.parseMarkdownFile(fileContent);
         return this.sendResponse(res, 200, parsedContent);
       } 
       // For other file types, return raw content
