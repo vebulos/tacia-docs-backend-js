@@ -15,18 +15,15 @@ class ContentController {
    */
   async handleRequest(req, res) {
     try {
-      // Le chemin est déjà extrait par le routeur
+      // the path is already extracted by the router
       const contentPath = req.params.path || '';
       const hasExtension = path.extname(contentPath) !== '';
       
-      // Log de débogage
-      console.log(`[ContentController] Handling request for: ${contentPath} (${hasExtension ? 'file' : 'directory'})`);
-      
       if (hasExtension) {
-        // Fichier avec extension -> requête de contenu
+        // file 
         return this.handleContentRequest(res, contentPath, req.query || {});
       } else {
-        // Pas d'extension -> requête de structure
+        // No extension - directory structure
         return this.handleContentStructure(res, contentPath, req.query || {});
       }
     } catch (error) {
@@ -108,6 +105,7 @@ class ContentController {
       const fullPath = path.join(CONTENT_DIR, safePath);
       
       // Check if the content directory exists
+      // TODO this must be checked in the router once at startup, not by every request
       try {
         // First check if the base content directory exists
         const contentDirStats = await fs.stat(CONTENT_DIR);

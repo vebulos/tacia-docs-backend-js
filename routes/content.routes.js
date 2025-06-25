@@ -58,21 +58,24 @@ export async function getMarkdownContent(req, res) {
 }
 
 /**
- * Handler for finding the first document in any content folder
+ * Handler for finding the first document in a directory
  * @param {Request} req - HTTP request object
  * @param {Response} res - HTTP response object
  */
 export async function getFirstDocument(req, res) {
   try {
-    console.log('[content] Finding first document using ContentService');
+    // Get directory from query params or use empty string for root
+    const directory = req.query.directory || '';
+    
+    console.log(`[content] Finding first document in directory: '${directory}'`);
     
     // Add anti-cache headers to prevent browser caching
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     
-    // Use the ContentService to find the first document
-    const result = await ContentService.findFirstDocument();
+    // Use the ContentService to find the first document in the specified directory
+    const result = await ContentService.findFirstDocument(directory);
     
     // If there was an error, return appropriate status code
     if (result.error) {
@@ -80,12 +83,16 @@ export async function getFirstDocument(req, res) {
       res.statusCode = 500;
       return res.json({ 
         error: result.error,
-        path: null
+        path: null,
+        details: result.details
       });
     }
     
     // Return the path (which may be null if no document was found)
-    return res.json({ path: result.path });
+    return res.json({ 
+      path: result.path,
+      directory: directory || null
+    });
   } catch (error) {
     console.error('[content] Unexpected error finding first document:', error);
     res.statusCode = 500;

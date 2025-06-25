@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { access } from 'fs/promises';
+import { config } from './config/app.config.js';
 import { getMarkdownContent, getFirstDocument } from './routes/content.routes.js';
 import { getRelatedDocuments } from './routes/related.routes.js';
 import { getContentStructure } from './routes/content-structure.routes.js';
@@ -20,16 +21,8 @@ const args = process.argv.slice(2).reduce((acc, arg) => {
   return acc;
 }, {});
 
-const PORT = args.port || process.env.PORT || 4201;
-
-// Get content directory from args
-const contentDir = args['content-dir'];
-
-// Validate content directory is provided
-if (!contentDir) {
-  console.error('[ERROR] Content directory not specified. Please provide --content-dir parameter.');
-  process.exit(1);
-}
+// Get content directory from args or config
+const contentDir = args['content-dir'] || config.contentDir;
 
 // Handle Cygwin paths (starts with /cygdrive/)
 let processedContentDir = contentDir;
@@ -45,6 +38,9 @@ if (contentDir.startsWith('/cygdrive/')) {
 
 // Resolve the final content directory path
 export const CONTENT_DIR = path.resolve(processedContentDir);
+
+// Set port from args, env or config
+const PORT = args.port || process.env.PORT || config.port;
 
 // Validate content directory exists and is accessible
 try {
