@@ -3,6 +3,9 @@ import fs from 'fs/promises';
 import { CONTENT_DIR } from '../server.js';
 import MarkdownService from '../services/markdown.service.js';
 import * as ContentService from '../services/content.service.js';
+import { createLogger } from '../logger.js';
+
+const LOG = createLogger('StructureController');
 
 /**
  * Controller for handling directory structure requests
@@ -37,7 +40,7 @@ class StructureController {
    */
   async handleContentRequest(res, contentPath, queryParams) {
     try {
-      console.log(`[StructureController] Handling content request for: ${contentPath}`);
+      LOG.debug(`Handling content request for: ${contentPath}`);
       
       // Normalize and secure the path
       let safePath = path.normalize(contentPath)
@@ -49,14 +52,14 @@ class StructureController {
       
       // Security check to prevent path traversal attacks
       if (!fullPath.startsWith(CONTENT_DIR)) {
-        console.warn(`[StructureController] Security warning: Attempted path traversal: ${contentPath}`);
+        LOG.warn(`Security warning: Attempted path traversal: ${contentPath}`);
         return this.sendResponse(res, 400, { 
           error: 'Invalid path', 
           details: 'Path traversal not allowed' 
         });
       }
       
-      console.log(`[StructureController] Reading file from: ${fullPath}`);
+      LOG.debug(`Reading file from: ${fullPath}`);
       
       // Read the file content
       const fileContent = await fs.readFile(fullPath, 'utf8');
@@ -93,7 +96,7 @@ class StructureController {
    */
   async handleContentStructure(res, contentPath, queryParams) {
     try {
-      console.log(`[StructureController] Handling structure request for: ${contentPath || 'root'}`);
+      LOG.debug(`Handling structure request for: ${contentPath || 'root'}`);
       
       // Normalize and secure the path
       const safePath = path.normalize(contentPath || '')
@@ -110,24 +113,24 @@ class StructureController {
         // First check if the base content directory exists
         const contentDirStats = await fs.stat(CONTENT_DIR);
         if (!contentDirStats.isDirectory()) {
-          console.error(`[StructureController] Base content directory is not a directory: ${CONTENT_DIR}`);
+          LOG.error(`Base content directory is not a directory: ${CONTENT_DIR}`);
           return this.sendResponse(res, 500, { 
             error: 'Content directory configuration error' 
           });
         }
         
         // Now check the requested path
-        console.log(`[ContentController] Checking path: ${fullPath}`);
+        LOG.debug(`Checking path: ${fullPath}`);
         const stats = await fs.stat(fullPath);
         if (!stats.isDirectory()) {
-          console.warn(`[ContentController] Path is not a directory: ${fullPath}`);
+          LOG.warn(`Path is not a directory: ${fullPath}`);
           return this.sendResponse(res, 400, { 
             error: 'Path is not a directory',
             path: contentPath
           });
         }
       } catch (error) {
-        console.warn(`[StructureController] Directory not found: ${fullPath}`, error);
+        LOG.warn(`Directory not found: ${fullPath}`, error);
         return this.sendResponse(res, 404, { 
           error: 'Directory not found',
           path: contentPath,
@@ -136,9 +139,9 @@ class StructureController {
       }
       
       // Read the directory contents
-      console.log(`[StructureController] Reading directory: ${fullPath}`);
+      LOG.debug(`Getting structure for directory: ${fullPath}`);
       const files = await fs.readdir(fullPath);
-      console.log(`[StructureController] Found ${files.length} files/directories`);
+      LOG.debug(`Found ${files.length} files/directories`);
       
       // Process each file/directory to create content items
       const contentItems = await Promise.all(files.map(async (name) => {
@@ -167,7 +170,7 @@ class StructureController {
               contentItem.title = titleMatch[1].trim();
             }
           } catch (error) {
-            console.error(`[StructureController] Error reading file ${name}:`, error);
+            LOG.error(`Error reading directory: ${fullPath}`, error);
           }
         }
         
@@ -210,7 +213,7 @@ class StructureController {
    * @private
    */
   handleError(res, error, context = '') {
-    console.error(`[StructureController] ${context} error:`, error);
+    LOG.error(`${context} error:`, error);
     this.sendResponse(res, 500, { 
       error: 'Internal Server Error',
       message: error.message,

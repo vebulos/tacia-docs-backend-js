@@ -1,9 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { CONTENT_DIR } from '../server.js';
+import { createLogger } from '../logger.js';
 import { config } from '../config/app.config.js';
 
-// Import CONTENT_DIR from server.js
-import { CONTENT_DIR } from '../server.js';
+const LOG = createLogger('ContentService');
 
 /**
  * Find the first document in the specified directory using configured extensions
@@ -12,7 +13,7 @@ import { CONTENT_DIR } from '../server.js';
  */
 export async function findFirstDocument(directory = '') {
   try {
-    console.log(`[ContentService] Finding first document in directory: '${directory}'`);
+    LOG.debug(`Finding first document in directory: '${directory}'`);
     
     // Normalize the directory path
     const normalizedDir = path.normalize(directory).replace(/\\/g, '/');
@@ -22,11 +23,11 @@ export async function findFirstDocument(directory = '') {
     try {
       const dirStats = await fs.stat(searchDir);
       if (!dirStats.isDirectory()) {
-        console.error(`[ContentService] Path is not a directory: ${searchDir}`);
+        LOG.error(`Path is not a directory: ${searchDir}`);
         return { path: null, error: 'Path is not a directory' };
       }
     } catch (dirError) {
-      console.error(`[ContentService] Directory not found: ${searchDir}`, dirError);
+      LOG.error(`Directory not found: ${searchDir}`, dirError);
       return { path: null, error: 'Directory not found' };
     }
     
@@ -53,7 +54,7 @@ export async function findFirstDocument(directory = '') {
     if (files.length > 0) {
       // Return the first matching file
       const relativePath = path.posix.join(normalizedDir, files[0].name).replace(/\\/g, '/');
-      console.log(`[ContentService] First document found: ${relativePath}`);
+      LOG.info(`First document found: ${relativePath}`);
       return { 
         path: relativePath.endsWith(config.defaultContentExtension) 
           ? relativePath.slice(0, -config.defaultContentExtension.length) 
@@ -77,11 +78,11 @@ export async function findFirstDocument(directory = '') {
     }
     
     // If we reach here, no files were found
-    console.log(`[ContentService] No content files found in directory: '${directory}'`);
+    LOG.warn(`No content files found in directory: '${directory}'`);
     return { path: null, error: null };
     
   } catch (error) {
-    console.error('[ContentService] Error finding first document:', error);
+    LOG.error('Error finding first document:', error);
     return { 
       path: null, 
       error: `Failed to find first document: ${error.message}`,

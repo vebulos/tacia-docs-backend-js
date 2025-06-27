@@ -1,6 +1,9 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { CONTENT_DIR } from '../server.js';
+import { createLogger } from '../logger.js';
+
+const LOG = createLogger('FirstDocumentController');
 
 /**
  * Controller for handling the first document retrieval
@@ -13,7 +16,7 @@ class FirstDocumentController {
    */
   async getFirstDocument(req, res) {
     try {
-      console.log('[FirstDocumentController] Getting first available document');
+      LOG.debug('Getting first available document');
       
       // Get the first markdown file in the content directory
       const firstDoc = await this.findFirstMarkdownFile(CONTENT_DIR);
@@ -28,9 +31,10 @@ class FirstDocumentController {
       
       // Get the relative path from CONTENT_DIR
       const relativePath = path.relative(CONTENT_DIR, firstDoc);
-      const normalizedPath = relativePath.replace(/\\/g, '/'); // Convert Windows paths to forward slashes
+      // Convert Windows paths to forward slashes
+      const normalizedPath = relativePath.replace(/\\/g, '/');
       
-      console.log(`[FirstDocumentController] First document found: ${normalizedPath}`);
+      LOG.info(`First document found: ${normalizedPath}`);
       
       // Return the path to the first document
       return res.end(JSON.stringify({
@@ -38,7 +42,7 @@ class FirstDocumentController {
         fullPath: firstDoc
       }));
     } catch (error) {
-      console.error('[FirstDocumentController] Error getting first document:', error);
+      LOG.error('Error getting first document', error);
       res.statusCode = 500;
       res.setHeader('Content-Type', 'application/json');
       return res.end(JSON.stringify({ 
@@ -82,7 +86,7 @@ class FirstDocumentController {
       
       return null;
     } catch (error) {
-      console.error(`[FirstDocumentController] Error reading directory ${dir}:`, error);
+      LOG.error(`Error reading directory ${dir}:`, error);
       throw error;
     }
   }

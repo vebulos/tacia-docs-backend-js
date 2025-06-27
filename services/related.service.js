@@ -1,9 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-
-// Import CONTENT_DIR from server.js
 import { CONTENT_DIR } from '../server.js';
+import { createLogger } from '../logger.js';
+
+const LOG = createLogger('RelatedService');
 
 // Simple in-memory cache for related documents
 // Structure: { [documentPath]: { timestamp: Date, data: Array<RelatedDoc>, ttl: number } }
@@ -19,10 +20,10 @@ const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
  */
 export async function findRelatedDocumentsForPath(documentPath, limit = 5, skipCache = false) {
   try {
-    console.log(`[RelatedService] Getting related documents for path: ${documentPath}, limit: ${limit}, skipCache: ${skipCache}`);
+    LOG.debug(`Getting related documents for path: ${documentPath}, limit: ${limit}, skipCache: ${skipCache}`);
     
     if (!documentPath) {
-      console.warn('[RelatedService] Missing document path');
+      LOG.warn('Missing document path');
       return { 
         error: 'Missing document path', 
         details: 'The path parameter is required',
@@ -40,13 +41,13 @@ export async function findRelatedDocumentsForPath(documentPath, limit = 5, skipC
       normalizedPath = `${normalizedPath}.md`;
     }
     
-    console.log(`[RelatedService] Normalized document path: ${normalizedPath}`);
+    LOG.debug(`Normalized document path: ${normalizedPath}`);
     
     // Check cache first if not skipping
     if (!skipCache) {
       const cachedResult = getCachedRelatedDocs(normalizedPath, limit);
       if (cachedResult) {
-        console.log(`[RelatedService] Cache hit for ${normalizedPath}`);
+        LOG.debug(`Cache hit for ${normalizedPath}`);
         return {
           related: cachedResult,
           fromCache: true
@@ -62,7 +63,7 @@ export async function findRelatedDocumentsForPath(documentPath, limit = 5, skipC
       // Check if the document exists
       await fs.access(fullDocumentPath);
     } catch (error) {
-      console.warn(`[RelatedService] Document not found: ${fullDocumentPath}`);
+      LOG.warn(`Document not found: ${fullDocumentPath}`);
       return { 
         error: 'Document not found', 
         details: `The document at path '${normalizedPath}' does not exist`,
@@ -77,7 +78,7 @@ export async function findRelatedDocumentsForPath(documentPath, limit = 5, skipC
       const { data } = matter(content);
       currentDocMetadata = data || {};
     } catch (error) {
-      console.warn(`[RelatedService] Error reading current document metadata: ${error.message}`);
+      LOG.warn(`Error reading current document metadata: ${error.message}`);
     }
     
     // Find related documents
@@ -88,7 +89,7 @@ export async function findRelatedDocumentsForPath(documentPath, limit = 5, skipC
       limit
     );
     
-    console.log(`[RelatedService] Found ${relatedDocs.length} related documents`);
+    LOG.info(`Found ${relatedDocs.length} related documents`);
     
     // Cache the results
     cacheRelatedDocs(normalizedPath, relatedDocs);
@@ -98,7 +99,7 @@ export async function findRelatedDocumentsForPath(documentPath, limit = 5, skipC
       fromCache: false
     };
   } catch (error) {
-    console.error('[RelatedService] Error getting related documents:', error);
+    LOG.error('Error getting related documents:', error);
     return { 
       error: 'Failed to get related documents', 
       details: error.message, 
@@ -123,7 +124,7 @@ function getCachedRelatedDocs(documentPath, limit) {
   // Check if cache entry has expired
   const now = Date.now();
   if (now - cacheEntry.timestamp > cacheEntry.ttl) {
-    console.log(`[RelatedService] Cache expired for ${documentPath}`);
+    LOG.debug(`Cache expired for ${documentPath}`);
     relatedDocsCache.delete(documentPath);
     return null;
   }
@@ -145,7 +146,7 @@ function cacheRelatedDocs(documentPath, relatedDocs, ttl = DEFAULT_CACHE_TTL) {
     ttl: ttl
   });
   
-  console.log(`[RelatedService] Cached ${relatedDocs.length} documents for ${documentPath}, TTL: ${ttl}ms`);
+  LOG.debug(`Cached ${relatedDocs.length} documents for ${documentPath}, TTL: ${ttl}ms`);
   
   // Cleanup old cache entries if cache is getting too large
   if (relatedDocsCache.size > 100) {
@@ -167,7 +168,7 @@ function cleanupCache() {
     }
   }
   
-  console.log(`[RelatedService] Cache cleanup: removed ${expiredCount} expired entries, remaining: ${relatedDocsCache.size}`);
+  LOG.debug(`Cache cleanup: removed ${expiredCount} expired entries, remaining: ${relatedDocsCache.size}`);
 }
 
 /**
@@ -192,7 +193,7 @@ async function findRelatedDocuments(currentPath, documentDir, currentMetadata, l
       const normalizedCurrentPath = currentPath.replace(/\\/g, '/').replace(/\.md$/i, '');
       
       if (normalizedFilePath === normalizedCurrentPath) {
-        console.log(`[RelatedService] Skipping current document: ${normalizedFilePath}`);
+        LOG.debug(`Skipping current document: ${normalizedFilePath}`);
         continue;
       }
       
@@ -236,7 +237,7 @@ async function findRelatedDocuments(currentPath, documentDir, currentMetadata, l
           });
         }
       } catch (error) {
-        console.warn(`[RelatedService] Error processing file ${filePath}:`, error);
+        LOG.warn(`Error processing file ${filePath}:`, error);
       }
     }
     
@@ -246,7 +247,7 @@ async function findRelatedDocuments(currentPath, documentDir, currentMetadata, l
       .slice(0, limit);
       
   } catch (error) {
-    console.error('[RelatedService] Error finding related documents:', error);
+    LOG.error('Error finding related documents:', error);
     return [];
   }
 }

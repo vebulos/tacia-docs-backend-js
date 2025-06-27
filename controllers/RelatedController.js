@@ -1,4 +1,7 @@
 import * as RelatedService from '../services/related.service.js';
+import { createLogger } from '../logger.js';
+
+const LOG = createLogger('RelatedController');
 
 /**
  * Controller for handling related documents functionality
@@ -16,7 +19,7 @@ class RelatedController {
       const limit = parseInt(req.query?.limit || '5', 10);
       const skipCache = req.query?.skipCache === 'true';
       
-      console.log(`[RelatedController] Getting related documents for path: ${documentPath}, limit: ${limit}, skipCache: ${skipCache}`);
+      LOG.debug(`Getting related documents for path: ${documentPath}, limit: ${limit}, skipCache: ${skipCache}`);
       
       // Use the RelatedService to find related documents
       const result = await RelatedService.findRelatedDocumentsForPath(documentPath, limit, skipCache);
@@ -26,7 +29,7 @@ class RelatedController {
       
       // If there was an error, return appropriate status code
       if (result.error) {
-        console.error(`[RelatedController] Error from RelatedService: ${result.error}`);
+        LOG.error(`Error from RelatedService: ${result.error}`);
         
         // Set appropriate status code based on the error
         if (result.error === 'Document not found') {
@@ -50,7 +53,7 @@ class RelatedController {
         fromCache: result.fromCache
       }));
     } catch (error) {
-      console.error('[RelatedController] Unexpected error in getRelatedDocuments:', error);
+      LOG.error('Unexpected error in getRelatedDocuments', error);
       res.statusCode = 500;
       res.setHeader('Content-Type', 'application/json');
       return res.end(JSON.stringify({ 

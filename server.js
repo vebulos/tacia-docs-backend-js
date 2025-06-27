@@ -5,6 +5,9 @@ import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { access } from 'fs/promises';
 import { config } from './config/app.config.js';
+import { createLogger } from './logger.js';
+
+const LOG = createLogger('Server');
 
 // Import controllers
 import ContentController from './controllers/ContentController.js';
@@ -53,10 +56,10 @@ try {
   // Try to read the directory to verify access
   await access(CONTENT_DIR);
   
-  console.log(`[server] Using content directory: ${CONTENT_DIR}`);
-  console.log('[server] Content directory is accessible');
+  LOG.info(`Using content directory: ${CONTENT_DIR}`);
+  LOG.info('Content directory is accessible');
 } catch (error) {
-  console.error(`[ERROR] Content directory error: ${error.message}`);
+  LOG.error(`Content directory error: ${error.message}`, error);
   process.exit(1);
 }
 
@@ -125,7 +128,7 @@ function createServer() {
       res.setHeader('Content-Type', 'text/plain');
       res.end('Markdown Content API is running');
     } catch (error) {
-      console.error('Error processing request:', error);
+      LOG.error('Error processing request:', error);
       res.statusCode = 500;
       res.end(JSON.stringify({ 
         error: 'Internal Server Error',
@@ -140,7 +143,7 @@ function createServer() {
   });
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[server fallback] Server is running on http://localhost:${PORT}`);
+    LOG.info(`Server is running on http://localhost:${PORT}`);
   });
 }
 

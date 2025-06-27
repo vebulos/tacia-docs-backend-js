@@ -12,11 +12,12 @@
   },
   "private": true,
   "dependencies": {
-    "express": "^5.1.0",
     "cors": "^2.8.5",
+    "express": "^5.1.0",
     "gray-matter": "^4.0.3",
     "highlight.js": "^11.11.1",
     "jsdom": "^26.1.0",
+    "log4js": "^6.9.1",
     "marked": "^15.0.12"
   },
   "devDependencies": {
