@@ -72,11 +72,16 @@ function createServer() {
     const pathname = parsedUrl.pathname;
     const query = parsedUrl.query;
 
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Request-Method', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', '*');
+    // Get the origin from the request
+    const origin = req.headers.origin || '*';
+    
+    // Set CORS headers for all responses
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, Pragma, Expires');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Cache-Control, Expires');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
