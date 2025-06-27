@@ -86,31 +86,33 @@ async function createServer() {
       res.end(JSON.stringify(data));
     };
 
+    // Sanitize and set request path and query parameters
+    let pathParam = parsedUrl.pathname.substring('/api/content/'.length);
+    
+    pathParam = decodeURIComponent(pathParam).trim();
+
+    req.params = { path: pathParam };
+    
+    const queryParams = {};
+    for (const [key, value] of Object.entries(parsedUrl.query || {})) {
+      queryParams[key] = value;
+    }
+    req.query = queryParams;
+
+
     // Route for /api/content/some/path
     if (req.method === 'GET' && parsedUrl.pathname.startsWith('/api/content/')) {
-      const pathParam = parsedUrl.pathname.substring('/api/content/'.length);
-      req.params = { path: pathParam };
       
-      // Parse query parameters properly
-      const queryParams = {};
-      for (const [key, value] of Object.entries(parsedUrl.query || {})) {
-        queryParams[key] = value;
-      }
-      req.query = queryParams;
-      
+      // Import the ContentController
+      const ContentController = (await import('./controllers/ContentController.js')).default;
+   
       console.log(`[server content] GET /api/content/${pathParam} with query:`, req.query);
-      await getMarkdownContent(req, res);
+      await ContentController.handleRequest(req, res);
       return;
     }
 
     // Route for related documents API
     if (req.method === 'GET' && parsedUrl.pathname === '/api/related') {
-      // Parse query parameters properly
-      const queryParams = {};
-      for (const [key, value] of Object.entries(parsedUrl.query || {})) {
-        queryParams[key] = value;
-      }
-      req.query = queryParams;
       
       // Log the request for debugging
       console.log('[server related] GET /api/related with query:', req.query);
@@ -121,12 +123,6 @@ async function createServer() {
     
     // Route for finding the first document in the first content folder
     if (req.method === 'GET' && parsedUrl.pathname === '/api/first-document') {
-      // Parse query parameters properly
-      const queryParams = {};
-      for (const [key, value] of Object.entries(parsedUrl.query || {})) {
-        queryParams[key] = value;
-      }
-      req.query = queryParams;
       
       // Log the request for debugging
       console.log('[server first-document] GET /api/first-document');

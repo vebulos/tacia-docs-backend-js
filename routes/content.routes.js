@@ -37,14 +37,6 @@ export async function getMarkdownContent(req, res) {
     // Import the ContentController
     const ContentController = (await import('../controllers/ContentController.js')).default;
     
-    // If path is empty, handle root content structure
-    if (!requestedPath) {
-      console.log('[content] No path provided, handling root content structure');
-      return ContentController.handleRequest(req, res);
-    }
-    
-    // For non-empty paths, forward to the ContentController
-    req.params = { path: requestedPath };
     return ContentController.handleRequest(req, res);
   } catch (error) {
     console.error('[content] Unexpected error processing request:', error);
