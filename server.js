@@ -5,8 +5,11 @@ import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { access } from 'fs/promises';
 import { config } from './config/app.config.js';
-import { getMarkdownContent, getFirstDocument } from './routes/content.routes.js';
-import { getRelatedDocuments } from './routes/related.routes.js';
+
+// Import controllers
+import ContentController from './controllers/ContentController.js';
+import FirstDocumentController from './controllers/FirstDocumentController.js';
+import RelatedController from './controllers/RelatedController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,75 +63,75 @@ try {
 /**
  * Minimal HTTP server for Markdown Content API
  */
-async function createServer() {
+function createServer() {
   const server = http.createServer(async (req, res) => {
-    // Enable CORS for all API requests
-    const allowedOrigins = ['http://localhost:4200', 'http://localhost:8080'];
-    const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    }
+    const parsedUrl = url.parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+    const query = parsedUrl.query;
+
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Request-Method', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Cache-Control, X-Requested-With');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Headers', '*');
 
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
-      res.writeHead(204);
-      return res.end();
-    }
-
-    const parsedUrl = url.parse(req.url, true);
-
-    // Patch res.json for convenience for all routes
-    res.json = (data) => {
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(data));
-    };
-
-    // Sanitize and set request path and query parameters
-    let pathParam = parsedUrl.pathname.substring('/api/content/'.length);
-    
-    pathParam = decodeURIComponent(pathParam).trim();
-
-    req.params = { path: pathParam };
-    
-    const queryParams = {};
-    for (const [key, value] of Object.entries(parsedUrl.query || {})) {
-      queryParams[key] = value;
-    }
-    req.query = queryParams;
-
-
-    // Route for /api/content/some/path
-    if (req.method === 'GET' && parsedUrl.pathname.startsWith('/api/content/')) {
-      
-      // Import the ContentController
-      const ContentController = (await import('./controllers/ContentController.js')).default;
-   
-      console.log(`[server content] GET /api/content/${pathParam} with query:`, req.query);
-      await ContentController.handleRequest(req, res);
+      res.writeHead(200);
+      res.end();
       return;
     }
 
-    // Route for related documents API
-    if (req.method === 'GET' && parsedUrl.pathname === '/api/related') {
-      
-      // Log the request for debugging
-      console.log('[server related] GET /api/related with query:', req.query);
-      
-      await getRelatedDocuments(req, res);
-      return;
-    }
-    
-    // Route for finding the first document in the first content folder
-    if (req.method === 'GET' && parsedUrl.pathname === '/api/first-document') {
-      
-      // Log the request for debugging
-      console.log('[server first-document] GET /api/first-document');
-      
-      await getFirstDocument(req, res);
-      return;
+    try {
+      // API Routes
+      if (pathname.startsWith('/api/')) {
+        // Extract the API path
+        const apiPath = pathname.replace(/^\/api\//, '');
+        
+        // Create request object with parsed data
+        const request = { 
+          ...req, 
+          query, 
+          params: {},
+          method: req.method
+        };
+
+        // Route to appropriate controller
+        if (apiPath === 'content' && req.method === 'GET') {
+          return await ContentController.handleRequest(request, res);
+        } 
+        
+        if (apiPath.startsWith('content/') && req.method === 'GET') {
+          // Extract path parameter
+          request.params.path = decodeURIComponent(apiPath.replace('content/', '')).trim();
+          return await ContentController.handleRequest(request, res);
+        } 
+        
+        if (apiPath === 'first-document' && req.method === 'GET') {
+          return await FirstDocumentController.getFirstDocument(request, res);
+        } 
+        
+        if (apiPath === 'related' && req.method === 'GET') {
+          return await RelatedController.getRelatedDocuments(request, res);
+        } 
+        
+        res.statusCode = 404;
+        return res.end(JSON.stringify({ error: 'Not Found' }));
+        
+      }
+
+      // Default route
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/plain');
+      res.end('Markdown Content API is running');
+    } catch (error) {
+      console.error('Error processing request:', error);
+      res.statusCode = 500;
+      res.end(JSON.stringify({ 
+        error: 'Internal Server Error',
+        details: error.message,
+        stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+      }));
     }
 
     // Fallback for unknown routes
