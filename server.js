@@ -7,7 +7,6 @@ import { access } from 'fs/promises';
 import { config } from './config/app.config.js';
 import { getMarkdownContent, getFirstDocument } from './routes/content.routes.js';
 import { getRelatedDocuments } from './routes/related.routes.js';
-import { getContentStructure } from './routes/content-structure.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,20 +86,6 @@ async function createServer() {
       res.end(JSON.stringify(data));
     };
 
-    // Route for /api/content (root)
-    if (req.method === 'GET' && parsedUrl.pathname === '/api/content') {
-      const queryParams = {};
-      for (const [key, value] of Object.entries(parsedUrl.query || {})) {
-        queryParams[key] = value;
-      }
-      req.query = queryParams;
-      req.params = { path: '' }; // Empty path for root
-      
-      console.log('[server] GET /api/content with query:', req.query);
-      await getMarkdownContent(req, res);
-      return;
-    }
-
     // Route for /api/content/some/path
     if (req.method === 'GET' && parsedUrl.pathname.startsWith('/api/content/')) {
       const pathParam = parsedUrl.pathname.substring('/api/content/'.length);
@@ -113,7 +98,7 @@ async function createServer() {
       }
       req.query = queryParams;
       
-      console.log(`[server] GET /api/content/${pathParam} with query:`, req.query);
+      console.log(`[server content] GET /api/content/${pathParam} with query:`, req.query);
       await getMarkdownContent(req, res);
       return;
     }
@@ -128,25 +113,9 @@ async function createServer() {
       req.query = queryParams;
       
       // Log the request for debugging
-      console.log('[server] GET /api/related with query:', req.query);
+      console.log('[server related] GET /api/related with query:', req.query);
       
       await getRelatedDocuments(req, res);
-      return;
-    }
-
-    // Route for content structure API (without path parameter)
-    if (req.method === 'GET' && parsedUrl.pathname === '/api/content') {
-      // Parse query parameters properly
-      const queryParams = {};
-      for (const [key, value] of Object.entries(parsedUrl.query || {})) {
-        queryParams[key] = value;
-      }
-      req.query = queryParams;
-      
-      // Log the request for debugging
-      console.log('[server] GET /api/content with query:', req.query);
-      
-      await getContentStructure(req, res);
       return;
     }
     
@@ -160,7 +129,7 @@ async function createServer() {
       req.query = queryParams;
       
       // Log the request for debugging
-      console.log('[server] GET /api/first-document');
+      console.log('[server first-document] GET /api/first-document');
       
       await getFirstDocument(req, res);
       return;
@@ -172,7 +141,7 @@ async function createServer() {
   });
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[server] Server is running on http://localhost:${PORT}`);
+    console.log(`[server fallback] Server is running on http://localhost:${PORT}`);
   });
 }
 
