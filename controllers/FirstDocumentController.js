@@ -18,15 +18,23 @@ class FirstDocumentController {
     try {
       LOG.debug('Getting first available document');
       
-      // Get the first markdown file in the content directory
-      const firstDoc = await this.findFirstMarkdownFile(CONTENT_DIR);
+      // Get the directory from query parameter or use root
+      const directory = req.query.directory || '';
+      const searchDir = directory ? path.join(CONTENT_DIR, directory) : CONTENT_DIR;
+      
+      LOG.debug(`Searching first document in directory: ${searchDir}`);
+      
+      // Get the first markdown file in the specified directory
+      const firstDoc = await this.findFirstMarkdownFile(searchDir);
       
       // Set content type
       res.setHeader('Content-Type', 'application/json');
       
       if (!firstDoc) {
         res.statusCode = 404;
-        return res.end(JSON.stringify({ error: 'No markdown files found in content directory' }));
+        return res.end(JSON.stringify({ 
+          error: `No markdown files found in directory: ${directory || 'root'}` 
+        }));
       }
       
       // Get the relative path from CONTENT_DIR
@@ -34,7 +42,7 @@ class FirstDocumentController {
       // Convert Windows paths to forward slashes
       const normalizedPath = relativePath.replace(/\\/g, '/');
       
-      LOG.info(`First document found: ${normalizedPath}`);
+      LOG.info(`First document found in ${directory || 'root'}: ${normalizedPath}`);
       
       // Return the path to the first document
       return res.end(JSON.stringify({
@@ -67,7 +75,7 @@ class FirstDocumentController {
         if (a.isDirectory() === b.isDirectory()) {
           return a.name.localeCompare(b.name);
         }
-        return a.isDirectory() ? -1 : 1;
+        return a.isDirectory() ? 1 : -1;
       });
       
       for (const entry of entries) {
