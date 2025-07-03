@@ -66,8 +66,24 @@ class ContentController {
       
       // Parse markdown if it's a markdown file
       if (path.extname(fullPath).toLowerCase() === '.md') {
-        const parsedContent = MarkdownService.parseMarkdownFile(fileContent);
-        return this.sendResponse(res, 200, parsedContent);
+        const { html, metadata, headings } = MarkdownService.parseMarkdownFile(fileContent);
+        
+        // Create response object with metadata
+        const response = {
+          html,
+          headings,
+          path: contentPath,
+          type: 'markdown',
+          // Include all metadata including tags in the metadata object
+          metadata: { ...metadata }
+        };
+        
+        // Ensure tags is always an array in metadata
+        if (!response.metadata.tags) {
+          response.metadata.tags = [];
+        }
+        
+        return this.sendResponse(res, 200, response);
       } 
       // For other file types, return raw content
       else {
