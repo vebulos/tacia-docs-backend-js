@@ -1,6 +1,5 @@
 import fs from 'fs/promises';
 import path from 'path';
-import matter from 'gray-matter';
 import { CONTENT_DIR } from '../server.js';
 import { createLogger } from '../logger.js';
 
@@ -172,10 +171,11 @@ function cleanupCache() {
 }
 
 /**
- * Find documents related to the current document based on tags.
+ * Find documents related to the current document based on path similarity.
+ * This is a simplified version that doesn't use front-matter.
  * @param {string} currentPath - Path of the current document
- * @param {string} documentDir - Directory containing the current document (not used for relevance)
- * @param {Object} currentMetadata - Metadata of the current document
+ * @param {string} documentDir - Directory containing the current document
+ * @param {Object} currentMetadata - Metadata of the current document (unused in this implementation)
  * @param {number} limit - Maximum number of related documents to return
  * @returns {Promise<Array>} Array of related documents
  */
@@ -183,10 +183,13 @@ async function findRelatedDocuments(currentPath, documentDir, currentMetadata, l
   try {
     const relatedDocs = [];
     
-    // Get all markdown files in the content directory
-    const allMarkdownFiles = await getAllMarkdownFiles('.');
+    // Get all markdown files in the same directory
+    const allMarkdownFiles = await getAllMarkdownFiles(documentDir || '.');
     
-    // Process each file to check for common tags
+    // Get the current document's directory for path-based relevance
+    const currentDir = path.dirname(currentPath);
+    
+    // Process each file to check for path similarity
     for (const filePath of allMarkdownFiles) {
       // Skip the current document
       const normalizedFilePath = filePath.replace(/\\/g, '/').replace(/\.md$/i, '');
@@ -198,44 +201,23 @@ async function findRelatedDocuments(currentPath, documentDir, currentMetadata, l
       }
       
       try {
-        const fullPath = path.join(CONTENT_DIR, filePath);
-        const content = await fs.readFile(fullPath, 'utf-8');
-        const { data } = matter(content);
+        const fileDir = path.dirname(filePath);
         
-        // Skip if no tags in either document
-        if (!data.tags || !currentMetadata.tags) {
-          continue;
-        }
+        // Calculate relevance based on directory depth similarity
+        // Files in the same directory are more relevant
+        const relevance = currentDir === fileDir ? 2 : 1;
         
-        // Extract title from metadata or filename
-        let title = data.title;
-        if (!title) {
-          const basename = path.basename(filePath, '.md');
-          title = basename
-            .replace(/[-_]/g, ' ')
-            .replace(/\b\w/g, l => l.toUpperCase());
-        }
+        // Extract title from filename
+        const basename = path.basename(filePath, '.md');
+        const title = basename
+          .replace(/[-_]/g, ' ')
+          .replace(/\b\w/g, l => l.toUpperCase());
         
-        // Calculate common tags and relevance
-        const candidateTags = Array.isArray(data.tags) ? data.tags : [data.tags];
-        const currentTags = Array.isArray(currentMetadata.tags) ? currentMetadata.tags : [currentMetadata.tags];
-        
-        const commonTags = candidateTags.filter(tag => currentTags.includes(tag));
-        
-        // Only include if there are common tags
-        if (commonTags.length > 0) {
-          const relevance = commonTags.length; // Relevance based on number of common tags
-          
-          relatedDocs.push({
-            path: filePath
-              .replace(/\.md$/i, '') // Remove .md extension
-              .replace(/\\/g, '/'),   // Replace backslashes with forward slashes
-            title: title,
-            commonTags: commonTags,
-            commonTagsCount: commonTags.length,
-            relevance: relevance
-          });
-        }
+        relatedDocs.push({
+          path: normalizedFilePath,
+          title: title,
+          relevance: relevance
+        });
       } catch (error) {
         LOG.warn(`Error processing file ${filePath}:`, error);
       }

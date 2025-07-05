@@ -1,7 +1,6 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { CONTENT_DIR } from '../server.js';
-import MarkdownService from '../services/markdown.service.js';
 import * as ContentService from '../services/content.service.js';
 import { createLogger } from '../logger.js';
 
@@ -64,35 +63,50 @@ class ContentController {
       // Read the file content
       const fileContent = await fs.readFile(fullPath, 'utf8');
       
-      // Parse markdown if it's a markdown file
-      if (path.extname(fullPath).toLowerCase() === '.md') {
-        const { html, metadata, headings } = MarkdownService.parseMarkdownFile(fileContent);
+      // Extract filename without extension for title
+      const filename = path.basename(contentPath, path.extname(contentPath));
+      let title = filename
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+      
+      // Default metadata
+      const metadata = {
+        title: title,
+        tags: []
+      };
+      
+      // Try to extract frontmatter if present
+      const frontmatterMatch = fileContent.match(/^---\s*\n([\s\S]*?)\n---/);
+      let contentWithoutFrontmatter = fileContent;
+      
+      if (frontmatterMatch) {
+        const yamlContent = frontmatterMatch[1];
+        contentWithoutFrontmatter = fileContent.substring(frontmatterMatch[0].length).trim();
         
-        // Create response object with metadata
-        const response = {
-          html,
-          headings,
-          path: contentPath,
-          type: 'markdown',
-          // Include all metadata including tags in the metadata object
-          metadata: { ...metadata }
-        };
-        
-        // Ensure tags is always an array in metadata
-        if (!response.metadata.tags) {
-          response.metadata.tags = [];
+        // Extract title from frontmatter if present
+        const titleMatch = yamlContent.match(/^title:\s*(.+)$/m);
+        if (titleMatch) {
+          metadata.title = titleMatch[1].trim();
         }
         
-        return this.sendResponse(res, 200, response);
-      } 
-      // For other file types, return raw content
-      else {
-        return this.sendResponse(res, 200, {
-          content: fileContent,
-          type: 'file',
-          path: contentPath
-        });
+        // Extract tags from frontmatter if present
+        const tagsMatch = yamlContent.match(/^tags:\s*\[([^\]]*)\]/m);
+        if (tagsMatch) {
+          metadata.tags = tagsMatch[1]
+            .split(',')
+            .map(tag => tag.trim().replace(/^['"]|['"]$/g, ''))
+            .filter(Boolean);
+        }
       }
+      
+      // Return structured response expected by frontend
+      return this.sendResponse(res, 200, {
+        html: contentWithoutFrontmatter, // Content without frontmatter
+        metadata: metadata,
+        headings: [], // Headers will be extracted client-side
+        path: contentPath,
+        name: filename
+      });
       
     } catch (error) {
       if (error.code === 'ENOENT') {
