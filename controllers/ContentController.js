@@ -101,7 +101,7 @@ class ContentController {
       
       // Return structured response expected by frontend
       return this.sendResponse(res, 200, {
-        html: contentWithoutFrontmatter, // Content without frontmatter
+        markdown: contentWithoutFrontmatter, // Content without frontmatter (Markdown format)
         metadata: metadata,
         headings: [], // Headers will be extracted client-side
         path: contentPath,
