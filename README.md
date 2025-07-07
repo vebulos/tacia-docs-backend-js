@@ -4,7 +4,7 @@
 [![Express](https://img.shields.io/badge/Express.js-404D59?style=for-the-badge)](https://expressjs.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-RESTful API server for TaciaDocs, built with Node.js and Express. This is the JavaScript backend implementation that powers the TaciaDocs documentation portal.
+RESTful API server for TaciaDocs, built with Node.js. This is the JavaScript backend implementation that powers the TaciaDocs documentation portal.
 
 ## 📚 Documentation
 
@@ -25,15 +25,13 @@ Explore our detailed documentation to understand, use, and contribute to the pro
 ### Prerequisites
 - Node.js 18.x or higher
 - npm 9.x or higher
-- PostgreSQL 13+ (or SQLite for development)
-- Redis (optional, for caching)
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/tacia-docs.git
-   cd tacia-docs/backend-js
+   git clone https://github.com/vebulos/tacia-docs-backend-js.git
+   cd tacia-docs-backend-js
    ```
 
 2. **Install dependencies**
@@ -51,7 +49,7 @@ Explore our detailed documentation to understand, use, and contribute to the pro
    ```bash
    npm run dev
    ```
-   The API will be available at `http://localhost:3000/api`
+   The API will be available at `http://localhost:4201/api`
 
 ## 🔄 Working with Frontend
 
@@ -59,13 +57,14 @@ This backend is designed to work with the TaciaDocs frontend. To run both togeth
 
 1. Start the backend server:
    ```bash
-   cd backend-js
+   cd tacia-docs-backend-js
    npm run dev
    ```
 
 2. In a separate terminal, start the frontend:
    ```bash
-   cd ../frontend
+   git clone https://github.com/vebulos/tacia-docs.git
+   cd tacia-docs
    npm start
    ```
 
@@ -77,8 +76,6 @@ This backend is designed to work with the TaciaDocs frontend. To run both togeth
 - Markdown content processing
 - Hierarchical document structure
 - Full-text search capabilities
-- Caching layer with Redis
-- Authentication & authorization
 - OpenAPI documentation
 - File upload and management
 - Internationalization support
@@ -86,21 +83,15 @@ This backend is designed to work with the TaciaDocs frontend. To run both togeth
 ## 🛠 Tech Stack
 
 - **Runtime**: Node.js 18+
-- **Framework**: Express.js
-- **Database**: PostgreSQL (SQLite for development)
-- **Cache**: Redis (optional)
 - **API**: RESTful JSON API
 - **Documentation**: OpenAPI/Swagger
-- **Testing**: Jest, Supertest
+- **Testing**: Vitest
 
 ## 🧪 Testing
 
 Run the test suite:
 ```bash
 npm test
-
-# Run tests with coverage
-npm run test:cov
 ```
 
 ## 🐳 Docker Support
@@ -109,10 +100,6 @@ Build and run with Docker:
 ```bash
 docker-compose up --build
 ```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please read our [Contribution Guidelines](.github/CONTRIBUTING.md) to get started.
 
 ## 📄 License
 
