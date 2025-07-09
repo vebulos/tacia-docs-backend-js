@@ -11,6 +11,7 @@ const LOG = createLogger('Server');
 
 // Import controllers
 import ContentController from './controllers/ContentController.js';
+import StructureController from './controllers/StructureController.js';
 import FirstDocumentController from './controllers/FirstDocumentController.js';
 import RelatedController from './controllers/RelatedController.js';
 
@@ -90,6 +91,9 @@ function createServer() {
       return;
     }
 
+    // Default response headers
+    res.setHeader('Content-Type', 'application/json');
+    
     try {
       // API Routes
       if (pathname.startsWith('/api/')) {
@@ -105,41 +109,86 @@ function createServer() {
         };
 
         // Route to appropriate controller
-        if (apiPath === 'content' && req.method === 'GET') {
-          return await ContentController.handleRequest(request, res);
-        } 
+        if (apiPath === 'content' || apiPath.startsWith('content/')) {
+          // Handle content requests (files)
+          const pathPart = apiPath === 'content' ? '' : apiPath.replace('content/', '');
+          const decodedPath = decodeURIComponent(pathPart).trim();
+          
+          // If no extension, it's a directory - return a clear message
+          if (path.extname(decodedPath) === '') {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              error: 'Directory listing not available',
+              message: 'Use /api/structure/ to list directory contents',
+              path: decodedPath,
+              suggestedUrl: `/api/structure/${decodedPath}`.replace(/\/+$/, '')
+            }));
+            return;
+          }
+          
+          // Handle as file using ContentController
+          request.params.path = decodedPath;
+          await ContentController.handleRequest(request, res);
+          return;
+        }
         
-        if (apiPath.startsWith('content/') && req.method === 'GET') {
-          // Extract path parameter
-          request.params.path = decodeURIComponent(apiPath.replace('content/', '')).trim();
-          return await ContentController.handleRequest(request, res);
-        } 
+        // Handle structure endpoint
+        if (apiPath === 'structure' || apiPath.startsWith('structure/')) {
+          // Handle structure requests (directories)
+          const pathPart = apiPath === 'structure' ? '' : apiPath.replace('structure/', '');
+          request.params.path = decodeURIComponent(pathPart).trim();
+          await StructureController.handleRequest(request, res);
+          return;
+        }
+        
+        // Handle root path or paths without extensions as directory listings
+        if (apiPath === '' || !path.extname(apiPath)) {
+          request.params.path = decodeURIComponent(apiPath).trim();
+          await StructureController.handleRequest(request, res);
+          return;
+        }
         
         if (apiPath === 'first-document' && req.method === 'GET') {
-          return await FirstDocumentController.getFirstDocument(request, res);
+          await FirstDocumentController.getFirstDocument(request, res);
+          return;
         } 
         
         if (apiPath === 'related' && req.method === 'GET') {
-          return await RelatedController.getRelatedDocuments(request, res);
+          await RelatedController.getRelatedDocuments(request, res);
+          return;
         } 
         
         res.statusCode = 404;
-        return res.end(JSON.stringify({ error: 'Not Found' }));
-        
+        res.end(JSON.stringify({ error: 'Not Found' }));
+        return;
+      }
+
+      // Health check endpoint
+      if (pathname === '/health') {
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'text/plain');
+        res.end('OK');
+        return;
       }
 
       // Default route
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/plain');
       res.end('Markdown Content API is running');
+      return;
+      
     } catch (error) {
       LOG.error('Error processing request:', error);
-      res.statusCode = 500;
-      res.end(JSON.stringify({ 
-        error: 'Internal Server Error',
-        details: error.message,
-        stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
-      }));
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ 
+          error: 'Internal Server Error',
+          details: error.message,
+          stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+        }));
+      }
+      return;
     }
 
     // Fallback for unknown routes

@@ -1,8 +1,6 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { CONTENT_DIR } from '../server.js';
-import MarkdownService from '../services/markdown.service.js';
-import * as ContentService from '../services/content.service.js';
 import { createLogger } from '../logger.js';
 
 const LOG = createLogger('StructureController');
@@ -20,73 +18,9 @@ class StructureController {
     try {
       // the path is already extracted by the router
       const contentPath = req.params?.path || '';
-      const hasExtension = path.extname(contentPath) !== '';
-      
-      if (hasExtension) {
-        // file 
-        return this.handleContentRequest(res, contentPath, req.query || {});
-      } else {
-        // No extension - directory structure
-        return this.handleContentStructure(res, contentPath, req.query || {});
-      }
+      return this.handleContentStructure(res, contentPath, req.query || {});
     } catch (error) {
-      this.handleError(res, error, 'Error handling request');
-    }
-  }
-
-  /**
-   * Handle directory structure requests (directories)
-   * @private
-   */
-  async handleContentRequest(res, contentPath, queryParams) {
-    try {
-      LOG.debug(`Handling content request for: ${contentPath}`);
-      
-      // Normalize and secure the path
-      let safePath = path.normalize(contentPath)
-        .replace(/^([/\\])+/, '')
-        .replace(/[/\\]+\.\.\//g, '/')
-        .replace(/[/\\]+/g, '/');
-      
-      const fullPath = path.join(CONTENT_DIR, safePath);
-      
-      // Security check to prevent path traversal attacks
-      if (!fullPath.startsWith(CONTENT_DIR)) {
-        LOG.warn(`Security warning: Attempted path traversal: ${contentPath}`);
-        return this.sendResponse(res, 400, { 
-          error: 'Invalid path', 
-          details: 'Path traversal not allowed' 
-        });
-      }
-      
-      LOG.debug(`Reading file from: ${fullPath}`);
-      
-      // Read the file content
-      const fileContent = await fs.readFile(fullPath, 'utf8');
-      
-      // Parse markdown if it's a markdown file
-      if (path.extname(fullPath).toLowerCase() === '.md') {
-        const parsedContent = MarkdownService.parseMarkdownFile(fileContent);
-        return this.sendResponse(res, 200, parsedContent);
-      } 
-      // For other file types, return raw content
-      else {
-        return this.sendResponse(res, 200, {
-          content: fileContent,
-          type: 'file',
-          path: contentPath
-        });
-      }
-      
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        return this.sendResponse(res, 404, { 
-          error: 'Not Found',
-          message: 'The requested content was not found',
-          path: contentPath
-        });
-      }
-      this.handleError(res, error, 'Error handling content request');
+      this.handleError(res, error, 'Error handling structure request');
     }
   }
 
@@ -98,8 +32,13 @@ class StructureController {
     try {
       LOG.debug(`Handling structure request for: ${contentPath || 'root'}`);
       
+      // Handle root path
+      if (!contentPath || contentPath === '/' || contentPath === '') {
+        return this.listDirectoryContents(res, CONTENT_DIR, '');
+      }
+      
       // Normalize and secure the path
-      const safePath = path.normalize(contentPath || '')
+      const safePath = path.normalize(contentPath)
         .replace(/^(\/\.\.|\/\.|\\.\.|\\.)+/g, '')  // Prevent directory traversal
         .replace(/^[/\\]+/, '')  // Remove leading slashes
         .replace(/[/\\]+/g, '/'); // Normalize path separators
@@ -107,20 +46,17 @@ class StructureController {
       // Determine the full path to the directory
       const fullPath = path.join(CONTENT_DIR, safePath);
       
-      // Check if the content directory exists
-      // TODO this must be checked in the router once at startup, not by every request
+      // Security check to prevent path traversal
+      if (!fullPath.startsWith(CONTENT_DIR)) {
+        LOG.warn(`Security warning: Attempted path traversal: ${contentPath}`);
+        return this.sendResponse(res, 400, { 
+          error: 'Invalid path', 
+          details: 'Path traversal not allowed' 
+        });
+      }
+      
+      // Check if the requested path exists and is a directory
       try {
-        // First check if the base content directory exists
-        const contentDirStats = await fs.stat(CONTENT_DIR);
-        if (!contentDirStats.isDirectory()) {
-          LOG.error(`Base content directory is not a directory: ${CONTENT_DIR}`);
-          return this.sendResponse(res, 500, { 
-            error: 'Content directory configuration error' 
-          });
-        }
-        
-        // Now check the requested path
-        LOG.debug(`Checking path: ${fullPath}`);
         const stats = await fs.stat(fullPath);
         if (!stats.isDirectory()) {
           LOG.warn(`Path is not a directory: ${fullPath}`);
@@ -129,17 +65,33 @@ class StructureController {
             path: contentPath
           });
         }
+        
+        // If we get here, the path exists and is a directory
+        return this.listDirectoryContents(res, fullPath, contentPath);
+        
       } catch (error) {
-        LOG.warn(`Directory not found: ${fullPath}`, error);
-        return this.sendResponse(res, 404, { 
-          error: 'Directory not found',
-          path: contentPath,
-          details: error.message 
-        });
+        if (error.code === 'ENOENT') {
+          LOG.warn(`Directory not found: ${fullPath}`);
+          return this.sendResponse(res, 404, { 
+            error: 'Directory not found',
+            path: contentPath
+          });
+        }
+        throw error; // Re-throw other errors
       }
       
-      // Read the directory contents
-      LOG.debug(`Getting structure for directory: ${fullPath}`);
+    } catch (error) {
+      this.handleError(res, error, 'Error handling content structure');
+    }
+  }
+
+  /**
+   * List contents of a directory
+   * @private
+   */
+  async listDirectoryContents(res, fullPath, contentPath) {
+    try {
+      LOG.debug(`Reading directory: ${fullPath}`);
       const files = await fs.readdir(fullPath);
       LOG.debug(`Found ${files.length} files/directories`);
       
@@ -149,7 +101,7 @@ class StructureController {
         const stats = await fs.stat(itemPath);
         
         // Determine the relative path for the item
-        const relativePath = path.join(safePath, name).replace(/\\/g, '/');
+        const relativePath = path.join(contentPath, name).replace(/\\/g, '/');
         
         // Basic content item structure
         const contentItem = {
@@ -164,13 +116,13 @@ class StructureController {
         // For markdown files, try to extract title from front matter
         if (!stats.isDirectory() && name.endsWith('.md')) {
           try {
-            const content = await fs.readFile(itemPath, 'utf8');  
+            const content = await fs.readFile(itemPath, 'utf8');
             const titleMatch = content.match(/title:\s*["']?([^"'\n]+)["']?/i);
             if (titleMatch && titleMatch[1]) {
               contentItem.title = titleMatch[1].trim();
             }
           } catch (error) {
-            LOG.error(`Error reading directory: ${fullPath}`, error);
+            LOG.error(`Error reading file: ${error.message}`, error);
           }
         }
         
@@ -194,7 +146,7 @@ class StructureController {
       });
       
     } catch (error) {
-      this.handleError(res, error, 'Error handling content structure');
+      this.handleError(res, error, 'Error listing directory contents');
     }
   }
 

@@ -11,7 +11,7 @@ const LOG = createLogger('ContentController');
  */
 class ContentController {
   /**
-   * Handle content requests
+   * Handle content requests (files only)
    * @param {http.IncomingMessage} req - HTTP request object
    * @param {http.ServerResponse} res - HTTP response object
    */
@@ -21,13 +21,18 @@ class ContentController {
       const contentPath = req.params.path || '';
       const hasExtension = path.extname(contentPath) !== '';
       
-      if (hasExtension) {
-        // file 
-        return this.handleContentRequest(res, contentPath, req.query || {});
-      } else {
-        // No extension - directory structure
-        return this.handleContentStructure(res, contentPath, req.query || {});
+      if (!hasExtension) {
+        // If no extension, this should be handled by StructureController
+        return this.sendResponse(res, 404, {
+          error: 'Not Found',
+          message: 'Use /api/structure/ for directory listings',
+          path: contentPath
+        });
       }
+      
+      // Handle file requests
+      return this.handleContentRequest(res, contentPath, req.query || {});
+      
     } catch (error) {
       this.handleError(res, error, 'Error handling request');
     }
@@ -121,111 +126,25 @@ class ContentController {
   }
 
   /**
+   * List contents of a directory
+   * @private
+   */
+  async listDirectoryContents() {
+    // This method has been moved to StructureController
+    throw new Error('listDirectoryContents has been moved to StructureController');
+  }
+  
+  /**
    * Handle content structure requests (directories)
    * @private
    */
   async handleContentStructure(res, contentPath, queryParams) {
-    try {
-      LOG.debug(`Handling structure request for: ${contentPath || 'root'}`);
-      
-      // Normalize and secure the path
-      const safePath = path.normalize(contentPath || '')
-        .replace(/^(\/\.\.|\/\.|\\.\.|\\.)+/g, '')  // Prevent directory traversal
-        .replace(/^[/\\]+/, '')  // Remove leading slashes
-        .replace(/[/\\]+/g, '/'); // Normalize path separators
-      
-      // Determine the full path to the directory
-      const fullPath = path.join(CONTENT_DIR, safePath);
-      
-      // Check if the content directory exists
-      // TODO this must be checked in the router once at startup, not by every request
-      try {
-        // First check if the base content directory exists
-        const contentDirStats = await fs.stat(CONTENT_DIR);
-        if (!contentDirStats.isDirectory()) {
-          LOG.error(`Base content directory is not a directory: ${CONTENT_DIR}`);
-          return this.sendResponse(res, 500, { 
-            error: 'Content directory configuration error' 
-          });
-        }
-        
-        // Now check the requested path
-        LOG.debug(`Checking path: ${fullPath}`);
-        const stats = await fs.stat(fullPath);
-        if (!stats.isDirectory()) {
-          LOG.warn(`Path is not a directory: ${fullPath}`);
-          return this.sendResponse(res, 400, { 
-            error: 'Path is not a directory',
-            path: contentPath
-          });
-        }
-      } catch (error) {
-        LOG.warn(`Directory not found: ${fullPath}`, error);
-        return this.sendResponse(res, 404, { 
-          error: 'Directory not found',
-          path: contentPath,
-          details: error.message 
-        });
-      }
-      
-      // Read the directory contents
-      LOG.debug(`Reading directory: ${fullPath}`);
-      const files = await fs.readdir(fullPath);
-      LOG.debug(`Found ${files.length} files/directories`);
-      
-      // Process each file/directory to create content items
-      const contentItems = await Promise.all(files.map(async (name) => {
-        const itemPath = path.join(fullPath, name);
-        const stats = await fs.stat(itemPath);
-        
-        // Determine the relative path for the item
-        const relativePath = path.join(safePath, name).replace(/\\/g, '/');
-        
-        // Basic content item structure
-        const contentItem = {
-          name,
-          path: relativePath,
-          isDirectory: stats.isDirectory(),
-          size: stats.size,
-          lastModified: stats.mtime,
-          type: stats.isDirectory() ? 'directory' : 'file'
-        };
-        
-        // For markdown files, try to extract title from front matter
-        if (!stats.isDirectory() && name.endsWith('.md')) {
-          try {
-            const content = await fs.readFile(itemPath, 'utf8');
-            const titleMatch = content.match(/title:\s*["']?([^"'\n]+)["']?/i);
-            if (titleMatch && titleMatch[1]) {
-              contentItem.title = titleMatch[1].trim();
-            }
-          } catch (error) {
-            LOG.error(`Error reading file: ${error.message}`, error);
-          }
-        }
-        
-        return contentItem;
-      }));
-      
-      // Sort directories first, then files, both alphabetically
-      contentItems.sort((a, b) => {
-        // Directories first
-        if (a.isDirectory && !b.isDirectory) return -1;
-        if (!a.isDirectory && b.isDirectory) return 1;
-        // Then sort by name
-        return a.name.localeCompare(b.name);
-      });
-      
-      // Return the structured content
-      return this.sendResponse(res, 200, {
-        path: contentPath || '/',
-        items: contentItems,
-        count: contentItems.length
-      });
-      
-    } catch (error) {
-      this.handleError(res, error, 'Error handling content structure');
-    }
+    // This method is now handled by StructureController
+    return this.sendResponse(res, 404, { 
+      error: 'Not Found',
+      message: 'Use /api/structure/ for directory listings',
+      path: contentPath
+    });
   }
 
   /**
