@@ -41,8 +41,8 @@ class FirstDocumentController {
     try {
       LOG.debug('Getting first available document');
       
-      // Get the directory from query parameter or use root
-      const directory = req.query.directory || '';
+      // Get the directory from path parameter or use root
+      const directory = req.params.path || '';
       const searchDir = directory ? path.join(CONTENT_DIR, directory) : CONTENT_DIR;
       
       LOG.debug(`Searching first document in directory: ${searchDir}`);

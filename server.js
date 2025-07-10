@@ -109,7 +109,9 @@ function createServer() {
         };
 
         // Handle specific API endpoints first
-        if (apiPath === 'first-document' && req.method === 'GET') {
+        if (apiPath === 'first-document' || apiPath.startsWith('first-document/')) {
+          const pathPart = apiPath === 'first-document' ? '' : apiPath.replace('first-document/', '');
+          request.params.path = decodeURIComponent(pathPart).trim();
           await FirstDocumentController.getFirstDocument(request, res);
           return;
         }
