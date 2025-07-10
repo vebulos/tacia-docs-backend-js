@@ -14,6 +14,29 @@ class FirstDocumentController {
    * @param {Request} req - HTTP request object
    * @param {Response} res - HTTP response object
    */
+  /**
+   * Send a JSON response
+   * @private
+   */
+  sendResponse(res, statusCode, data) {
+    res.statusCode = statusCode;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(data));
+  }
+
+  /**
+   * Handle errors
+   * @private
+   */
+  handleError(res, error, context = '') {
+    LOG.error(`${context} error:`, error);
+    this.sendResponse(res, 500, { 
+      error: 'Internal Server Error',
+      message: error.message,
+      ...(context && { context })
+    });
+  }
+
   async getFirstDocument(req, res) {
     try {
       LOG.debug('Getting first available document');
@@ -27,14 +50,12 @@ class FirstDocumentController {
       // Get the first markdown file in the specified directory
       const firstDoc = await this.findFirstMarkdownFile(searchDir);
       
-      // Set content type
-      res.setHeader('Content-Type', 'application/json');
-      
       if (!firstDoc) {
-        res.statusCode = 404;
-        return res.end(JSON.stringify({ 
-          error: `No markdown files found in directory: ${directory || 'root'}` 
-        }));
+        this.sendResponse(res, 404, { 
+          error: 'Not Found',
+          message: `No markdown files found in directory: ${directory || 'root'}`
+        });
+        return;
       }
       
       // Get the relative path from CONTENT_DIR
@@ -45,18 +66,15 @@ class FirstDocumentController {
       LOG.info(`First document found in ${directory || 'root'}: ${normalizedPath}`);
       
       // Return the path to the first document
-      return res.end(JSON.stringify({
+      this.sendResponse(res, 200, {
         path: normalizedPath,
         fullPath: firstDoc
-      }));
+      });
+      return;
+      
     } catch (error) {
-      LOG.error('Error getting first document', error);
-      res.statusCode = 500;
-      res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify({ 
-        error: 'Failed to get first document', 
-        details: error.message 
-      }));
+      this.handleError(res, error, 'Error getting first document');
+      return;
     }
   }
   

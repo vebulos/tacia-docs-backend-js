@@ -108,6 +108,17 @@ function createServer() {
           method: req.method
         };
 
+        // Handle specific API endpoints first
+        if (apiPath === 'first-document' && req.method === 'GET') {
+          await FirstDocumentController.getFirstDocument(request, res);
+          return;
+        }
+        
+        if (apiPath === 'related' && req.method === 'GET') {
+          await RelatedController.getRelatedDocuments(request, res);
+          return;
+        }
+
         // Route to appropriate controller
         if (apiPath === 'content' || apiPath.startsWith('content/')) {
           // Handle content requests (files)
@@ -148,16 +159,6 @@ function createServer() {
           await StructureController.handleRequest(request, res);
           return;
         }
-        
-        if (apiPath === 'first-document' && req.method === 'GET') {
-          await FirstDocumentController.getFirstDocument(request, res);
-          return;
-        } 
-        
-        if (apiPath === 'related' && req.method === 'GET') {
-          await RelatedController.getRelatedDocuments(request, res);
-          return;
-        } 
         
         res.statusCode = 404;
         res.end(JSON.stringify({ error: 'Not Found' }));
