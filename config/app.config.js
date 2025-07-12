@@ -24,7 +24,7 @@ export const config = {
   ],
   
   // Default port for the server
-  port: process.env.PORT || 3000,
+  port: process.env.PORT || 7070,
   
   // Content directory (can be overridden by environment variable)
   contentDir: process.env.CONTENT_DIR || 'content'

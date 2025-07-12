@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "description": "MXC Documentation Site",
   "scripts": {
-    "start": "node server.js --port=4201 --content-dir=../DATA/content",
-    "dev": "node --inspect server.js --port=4201 --content-dir=../DATA/content",
+    "start": "node server.js --port=7070 --content-dir=../DATA/content",
+    "dev": "node --inspect server.js --port=7070 --content-dir=../DATA/content",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
