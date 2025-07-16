@@ -2,7 +2,7 @@
   "name": "mxc-docs",
   "type": "module",
   "version": "1.0.0",
-  "description": "MXC Documentation Site",
+  "description": "TaciaDocs Documentation Framework - JS Backend",
   "scripts": {
     "start": "node server.js --port=7070 --content-dir=../DATA/content",
     "dev": "node --inspect server.js --port=7070 --content-dir=../DATA/content",
@@ -13,7 +13,7 @@
   "private": true,
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^5.1.0",
+    "gray-matter": "^4.0.3",
     "log4js": "^6.9.1"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import matter from 'gray-matter';
 import { CONTENT_DIR } from '../server.js';
 import { createLogger } from '../logger.js';
 
