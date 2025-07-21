@@ -14,7 +14,8 @@
   "dependencies": {
     "cors": "^2.8.5",
     "gray-matter": "^4.0.3",
-    "log4js": "^6.9.1"
+    "log4js": "^6.9.1",
+    "yaml": "^2.8.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.1",

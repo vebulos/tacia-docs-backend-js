@@ -3,6 +3,57 @@ import fs from 'fs/promises';
 import { CONTENT_DIR } from '../server.js';
 import { createLogger } from '../logger.js';
 import { config } from '../config/app.config.js';
+import yaml from 'yaml';
+
+// Simple YAML frontmatter parser for metadata files
+async function parseMetadataFile(content) {
+  try {
+    return yaml.parse(content);
+  } catch (error) {
+    // Fallback to simple key-value parsing
+    const result = {};
+    const lines = content.split('\n');
+    
+    for (const line of lines) {
+      // Skip empty lines and comments
+      if (!line.trim() || line.trim().startsWith('#')) continue;
+      
+      const match = line.match(/^([a-zA-Z0-9_-]+):\s*(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        let value = match[2].trim();
+        
+        // Remove surrounding quotes if present
+        if ((value.startsWith('"') && value.endsWith('"')) || 
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.substring(1, value.length - 1);
+        }
+        
+        // Try to parse values appropriately
+        if (value === 'true') value = true;
+        else if (value === 'false') value = false;
+        else if (value === 'null' || value === '') value = null;
+        else if (!isNaN(value) && value !== '') value = Number(value);
+        
+        result[key] = value;
+      }
+    }
+    
+    return result;
+  }
+}
+
+// Extract frontmatter from markdown content
+function extractFrontmatter(content) {
+  const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!frontmatterMatch) return null;
+  
+  try {
+    return yaml.parse(frontmatterMatch[1]);
+  } catch (error) {
+    return null;
+  }
+}
 
 const LOG = createLogger('StructureController');
 
@@ -93,137 +144,125 @@ class StructureController {
   async listDirectoryContents(res, fullPath, contentPath) {
     try {
       LOG.debug(`Reading directory: ${fullPath}`);
-      const files = await fs.readdir(fullPath);
-      LOG.debug(`Found ${files.length} files/directories`);
+      const files = await fs.readdir(fullPath, { withFileTypes: true });
       
-      // Process each file/directory to create content items
-      const contentItems = [];
-      
-      for (const name of files) {
-        const itemPath = path.join(fullPath, name);
-        const stats = await fs.stat(itemPath);
+      // Process each entry
+      const items = [];
+      for (const entry of files) {
+        const entryPath = path.join(fullPath, entry.name);
+        const relativePath = path.join(contentPath, entry.name).replace(/\\/g, '/');
         
-        // Skip files with unallowed extensions
-        if (!stats.isDirectory()) {
-          const ext = path.extname(name).toLowerCase();
-          if (!config.contentExtensions.includes(ext)) {
-            continue; // Skip this file
-          }
+        // Skip hidden files and directories (except .metadata)
+        if (entry.name.startsWith('.') && entry.name !== '.metadata') {
+          continue;
         }
         
-        // Determine the relative path for the item
-        const relativePath = path.join(contentPath, name).replace(/\\/g, '/');
+        // Skip files with unallowed extensions
+        if (!entry.isDirectory() && 
+            entry.name !== '.metadata' && 
+            !config.contentExtensions.includes(path.extname(entry.name).toLowerCase())) {
+          continue;
+        }
         
-        // Basic content item structure
-        const contentItem = {
-          name: name,
+        const stats = await fs.stat(entryPath);
+        const isDirectory = entry.isDirectory();
+        const isMarkdown = entry.name.endsWith('.md');
+        
+        const item = {
+          name: entry.name,
           path: relativePath,
-          isDirectory: stats.isDirectory(),
+          isDirectory,
           size: stats.size,
-          lastModified: stats.mtime,
-          type: stats.isDirectory() ? 'directory' : 'file',
-          order: undefined,  // No order by default
+          lastModified: stats.mtime.toISOString(),
+          type: isDirectory ? 'directory' : 'file',
           metadata: {}
         };
         
-        // For directories, check if .metadata file exists
-        if (stats.isDirectory()) {
-          try {
-            const metadataPath = path.join(itemPath, '.metadata');
-            const metadataContent = await fs.readFile(metadataPath, 'utf8');
-            
-            // Extract order from metadata
-            const orderMatch = metadataContent.match(/order\s*:\s*(\d+)/i);
-            if (orderMatch && orderMatch[1]) {
-              contentItem.order = parseInt(orderMatch[1], 10);
-            }
-            
-            // Store raw metadata for future use
-            contentItem.metadata = metadataContent;
-          } catch (error) {
-            // .metadata file doesn't exist or couldn't be read, which is fine
-            if (error.code !== 'ENOENT') {
-              LOG.error(`Error reading .metadata file in ${itemPath}:`, error);
-            }
-          }
-        }
-        // For markdown files, try to extract metadata from front matter
-        else if (name.endsWith('.md')) {
-          try {
-            const content = await fs.readFile(itemPath, 'utf8');
-            // Extract title
-            const titleMatch = content.match(/title:\s*["']?([^"'\n]+)["']?/i);
-            if (titleMatch && titleMatch[1]) {
-              contentItem.title = titleMatch[1].trim();
-            }
-            // Extract order from front matter if present
-            // First try YAML front matter format (--- order: 123 ---)
-            const frontMatterMatch = content.match(/^---[\s\S]*?order:\s*(\d+)[\s\S]*?---/);
-            if (frontMatterMatch && frontMatterMatch[1]) {
-              contentItem.order = parseInt(frontMatterMatch[1], 10);
-              LOG.debug(`Found order ${contentItem.order} in ${name} (YAML front matter)`);
-            } else {
-              // Fallback to simple format (order: 123)
-              const orderMatch = content.match(/^order:\s*(\d+)/m);
-              if (orderMatch && orderMatch[1]) {
-                contentItem.order = parseInt(orderMatch[1], 10);
-                LOG.debug(`Found order ${contentItem.order} in ${name} (simple format)`);
+        try {
+          // Handle .metadata files for directories
+          if (isDirectory) {
+            const metadataPath = path.join(entryPath, '.metadata');
+            try {
+              const metadataContent = await fs.readFile(metadataPath, 'utf8');
+              const metadata = await parseMetadataFile(metadataContent);
+              if (metadata) {
+                item.metadata = metadata;
+                // Set order from metadata if present
+                if (metadata.order !== undefined) {
+                  item.order = Number(metadata.order) || 0;
+                }
+              }
+            } catch (error) {
+              // .metadata file doesn't exist or couldn't be read, which is fine
+              if (error.code !== 'ENOENT') {
+                LOG.error(`Error reading .metadata file ${metadataPath}:`, error);
               }
             }
-          } catch (error) {
-            LOG.error(`Error reading file: ${error.message}`, error);
+          } 
+          // Handle markdown frontmatter
+          else if (isMarkdown) {
+            try {
+              const content = await fs.readFile(entryPath, 'utf8');
+              const frontmatter = extractFrontmatter(content);
+              if (frontmatter) {
+                item.metadata = frontmatter;
+                // Set order from frontmatter if present
+                if (frontmatter.order !== undefined) {
+                  item.order = Number(frontmatter.order) || 0;
+                }
+              }
+            } catch (error) {
+              LOG.error(`Error reading markdown file ${entryPath}:`, error);
+            }
+          }
+        } catch (error) {
+          LOG.error(`Error processing metadata for ${entryPath}:`, error);
+        }
+        
+        // Skip .metadata files from the final output
+        if (entry.name === '.metadata') continue;
+        
+        items.push(item);
+      }
+      
+      // Sort items
+      items.sort((a, b) => {
+        // First by order (if specified)
+        if (a.order !== undefined || b.order !== undefined) {
+          const aOrder = a.order !== undefined ? a.order : Number.MAX_SAFE_INTEGER;
+          const bOrder = b.order !== undefined ? b.order : Number.MAX_SAFE_INTEGER;
+          if (aOrder !== bOrder) {
+            return aOrder - bOrder;
           }
         }
         
-        contentItems.push(contentItem);
-      }
+        // Then by type (directories first)
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        
+        // Finally by name
+        return a.name.localeCompare(b.name);
+      });
       
-      // Debug: log items before sorting
-      LOG.debug('Items before sorting:', contentItems.map(item => ({
+      // Log the final order
+      LOG.debug('After sort order:');
+      items.forEach((item, index) => {
+        LOG.debug(`  ${index + 1}. ${item.name} (order: ${item.order !== undefined ? item.order : 'none'})`);
+      });
+      
+      // Debug: log items after sorting
+      LOG.debug('Items after sorting:', items.map(item => ({
         name: item.name,
         isDirectory: item.isDirectory,
         order: item.order,
         hasMetadata: !!item.metadata && Object.keys(item.metadata).length > 0
       })));
       
-      // Log the order values for debugging
-      contentItems.forEach(item => {
-        LOG.debug(`Before sort - Item: ${item.name}, Order: ${item.order !== undefined ? item.order : 'undefined'}, Type: ${item.isDirectory ? 'directory' : 'file'}`);
-      });
-
-      // Sort items with order first (by order value), then items without order (by name)
-      contentItems.sort((a, b) => {
-        // If both have order, sort by order value
-        if (a.order !== undefined && b.order !== undefined) {
-          return a.order - b.order;
-        }
-        // If only a has order, a comes first
-        if (a.order !== undefined) return -1;
-        // If only b has order, b comes first
-        if (b.order !== undefined) return 1;
-        // If neither has order, sort by name
-        return a.name.localeCompare(b.name);
-      });
-      
-      // Log the final order
-      LOG.debug('After sort order:');
-      contentItems.forEach((item, index) => {
-        LOG.debug(`  ${index + 1}. ${item.name} (order: ${item.order !== undefined ? item.order : 'none'})`);
-      });
-      
-      // Debug: log items after sorting
-      LOG.debug('Items after sorting:', contentItems.map(item => ({
-        name: item.name,
-        isDirectory: item.isDirectory,
-        order: item.order,
-        hasMetadata: !!item.metadata
-      })));
-      
       // Return the structured content
       return this.sendResponse(res, 200, {
         path: contentPath || '/',
-        items: contentItems,
-        count: contentItems.length
+        items: items,
+        count: items.length
       });
       
     } catch (error) {

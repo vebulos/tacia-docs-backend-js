@@ -27,7 +27,7 @@ export const config = {
   port: process.env.PORT || 7070,
   
   // Content directory (can be overridden by environment variable)
-  contentDir: process.env.CONTENT_DIR || 'content'
+  contentDir: process.env.CONTENT_DIR
 };
 
 export default config;

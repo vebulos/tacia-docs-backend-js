@@ -6,6 +6,46 @@ import { createLogger } from '../logger.js';
 
 const LOG = createLogger('ContentController');
 
+// Simple YAML parser for frontmatter
+function parseYamlFrontmatter(yamlContent) {
+  const result = {};
+  const lines = yamlContent.split('\n');
+  
+  for (const line of lines) {
+    // Skip empty lines and comments
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    
+    const match = line.match(/^([a-zA-Z0-9_-]+):\s*(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      let value = match[2].trim();
+      
+      // Remove surrounding quotes if present
+      if ((value.startsWith('"') && value.endsWith('"')) || 
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.substring(1, value.length - 1);
+      }
+      
+      // Try to parse values appropriately
+      if (value === 'true') value = true;
+      else if (value === 'false') value = false;
+      else if (value === 'null' || value === '') value = null;
+      else if (!isNaN(value) && value !== '') value = Number(value);
+      else if (value.startsWith('[') && value.endsWith(']')) {
+        // Simple array parsing
+        value = value.substring(1, value.length - 1)
+          .split(',')
+          .map(item => item.trim().replace(/^['"]|['"]$/g, ''))
+          .filter(item => item.length > 0);
+      }
+      
+      result[key] = value;
+    }
+  }
+  
+  return result;
+}
+
 /**
  * Controller for handling content-related requests
  */
@@ -75,10 +115,9 @@ class ContentController {
         .replace(/_/g, ' ')
         .replace(/\b\w/g, l => l.toUpperCase());
       
-      // Default metadata
+      // Default metadata with just the title from filename
       const metadata = {
-        title: title,
-        tags: []
+        title: title
       };
       
       // Try to extract frontmatter if present
@@ -89,19 +128,44 @@ class ContentController {
         const yamlContent = frontmatterMatch[1];
         contentWithoutFrontmatter = fileContent.substring(frontmatterMatch[0].length).trim();
         
-        // Extract title from frontmatter if present
-        const titleMatch = yamlContent.match(/^title:\s*(.+)$/m);
-        if (titleMatch) {
-          metadata.title = titleMatch[1].trim();
-        }
-        
-        // Extract tags from frontmatter if present
-        const tagsMatch = yamlContent.match(/^tags:\s*\[([^\]]*)\]/m);
-        if (tagsMatch) {
-          metadata.tags = tagsMatch[1]
-            .split(',')
-            .map(tag => tag.trim().replace(/^['"]|['"]$/g, ''))
-            .filter(Boolean);
+        try {
+          // First try with the YAML parser if available
+          try {
+            const yaml = await import('yaml');
+            const parsedYaml = yaml.parse(yamlContent);
+            if (parsedYaml && typeof parsedYaml === 'object') {
+              Object.assign(metadata, parsedYaml);
+            }
+          } catch (yamlError) {
+            LOG.debug('Falling back to simple YAML parser');
+            // Fallback to simple parser if YAML parsing fails
+            const parsedYaml = parseYamlFrontmatter(yamlContent);
+            Object.assign(metadata, parsedYaml);
+          }
+          
+          // Ensure title is always a string (fallback to filename)
+          if (!metadata.title || typeof metadata.title !== 'string') {
+            metadata.title = title;
+          }
+          
+          // Convert tags to array if it's a string
+          if (metadata.tags) {
+            if (typeof metadata.tags === 'string') {
+              metadata.tags = metadata.tags
+                .split(',')
+                .map(tag => tag.trim())
+                .filter(tag => tag.length > 0);
+            } else if (!Array.isArray(metadata.tags)) {
+              // If tags is not an array, remove it
+              delete metadata.tags;
+            }
+          }
+          
+          LOG.debug(`Extracted metadata: ${JSON.stringify(metadata)}`);
+          
+        } catch (error) {
+          LOG.error('Error parsing frontmatter:', error);
+          // Continue with default metadata if parsing fails
         }
       }
       
