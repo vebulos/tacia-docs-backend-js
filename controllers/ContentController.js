@@ -70,8 +70,9 @@ class ContentController {
       
       // Extract filename without extension for title
       const filename = path.basename(contentPath, path.extname(contentPath));
+      // Keep dashes in the filename, only replace underscores with spaces
       let title = filename
-        .replace(/[-_]/g, ' ')
+        .replace(/_/g, ' ')
         .replace(/\b\w/g, l => l.toUpperCase());
       
       // Default metadata
